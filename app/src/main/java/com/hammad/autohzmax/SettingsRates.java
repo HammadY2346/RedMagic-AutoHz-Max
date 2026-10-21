@@ -6,65 +6,35 @@ import android.provider.Settings;
 import android.view.Display;
 
 import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.Set;
-import java.util.WeakHashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 /**
- * Settings › Display › Refresh rate (com.android.settings, ZTE's ScreenRefreshRateSettingsFragment).
+ * Settings › Display › Refresh rate (com.android.settings, ZTE's ScreenRefreshRateSettingsFragment), Android 16 only.
  *
- * The page lists the panel's display modes, but on RedMagic OS 10 (Android 15) it only knows how to show 60 / 90 / 120 /
- * 144 Hz (createRadioButtonPreference returns nothing for any other rate), so a 165 Hz panel (DTBO mod) gets no 165 Hz
- * choice. RedMagic OS 11 (Android 16) shows it natively as refresh_rate_mode 5. This adds the panel's top rate the same
- * way when the page lacks it: a "165 Hz" choice that writes mode 5, checked when mode 5 is set. The system framework
- * part (Hook) makes mode 5 run at the panel's highest rate on firmware that has no mode 5.
+ * The Auto choice's summary names the old ceiling ("switches between 60 and 120 Hz"). With the framework part working,
+ * Auto goes up to the panel's top rate, so the summary says that instead. RedMagic OS 11 lists 165 Hz itself (mode 5);
+ * the 165 Hz choice that 1.2 added on Android 15 is gone with Android 15 support (1.3).
  */
 final class SettingsRates {
     private SettingsRates() {}
 
     static final String FRAGMENT = "com.zte.settings.display.screerefresh.ScreenRefreshRateSettingsFragment";
-    static final int MODE_TOP = 5;
-    private static final String MODE_KEY = "refresh_rate_mode";
-
-    /** fragment -> the choice this module added */
-    private static final Map<Object, Object> added = new WeakHashMap<>();
 
     static void install(ClassLoader cl) {
         Class<?> frag = XposedHelpers.findClassIfExists(FRAGMENT, cl);
         if (frag == null) { Hook.log("Settings: refresh-rate page not found on this firmware"); return; }
-        int n = 0;
-        n += hookAll(frag, "onCreate", new XC_MethodHook() {
+        int n = hookAll(frag, "onCreate", new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam p) {
                 if (p.hasThrowable()) return;
-                try { addTop(p.thisObject); } catch (Throwable t) { Hook.log("Settings: adding the top rate failed: " + t); }
-            }
-        });
-        n += hookAll(frag, "onRadioButtonClicked", new XC_MethodHook() {
-            @Override protected void beforeHookedMethod(MethodHookParam p) {
-                Object mine = added.get(p.thisObject);
-                if (mine == null || p.args.length == 0 || p.args[0] != mine) return;
                 try {
                     Context ctx = (Context) XposedHelpers.callMethod(p.thisObject, "getContext");
-                    Settings.System.putInt(ctx.getContentResolver(), MODE_KEY, MODE_TOP);
-                    XposedHelpers.callMethod(p.thisObject, "updateUI");
-                    Hook.log("Settings: refresh rate set to the top rate (mode " + MODE_TOP + ")");
-                    p.setResult(null);
-                } catch (Throwable t) { Hook.log("Settings: selecting the top rate failed: " + t); }
-            }
-        });
-        n += hookAll(frag, "updateUI", new XC_MethodHook() {
-            @Override protected void afterHookedMethod(MethodHookParam p) {
-                Object mine = added.get(p.thisObject);
-                if (mine == null) return;
-                try {
-                    Context ctx = (Context) XposedHelpers.callMethod(p.thisObject, "getContext");
-                    int mode = Settings.System.getInt(ctx.getContentResolver(), MODE_KEY, 0);
-                    XposedHelpers.callMethod(mine, "setChecked", mode == MODE_TOP);
-                } catch (Throwable ignored) { }
+                    if (ctx == null) return;
+                    int top = topRate(ctx);
+                    if (top > 120) autoSummary(p.thisObject, ctx, top);
+                } catch (Throwable t) { Hook.log("Settings: Auto summary: " + t); }
             }
         });
         Hook.log("Settings: refresh-rate page hooked (" + n + " hooks)");
@@ -80,10 +50,6 @@ final class SettingsRates {
         } catch (Throwable t) { return 0; }
     }
 
-    /**
-     * The Auto choice's summary names the old ceiling ("switches between 60 and 120 Hz"); with the framework part working
-     * Auto goes up to the panel's top rate, so the summary says that instead.
-     */
     private static void autoSummary(Object frag, Context ctx, int top) {
         String status = null;
         try { status = Settings.Global.getString(ctx.getContentResolver(), Hook.STATUS_KEY); } catch (Throwable ignored) { }
@@ -99,42 +65,6 @@ final class SettingsRates {
         if (max == 0 || max >= top) return;
         XposedHelpers.callMethod(auto, "setSummary", text.replace(String.valueOf(max), String.valueOf(top)));
         Hook.log("Settings: Auto summary now names " + top + " Hz (was " + max + ")");
-    }
-
-    private static void addTop(Object frag) {
-        Context ctx = (Context) XposedHelpers.callMethod(frag, "getContext");
-        if (ctx == null) return;
-        int top = topRate(ctx);
-        if (top <= 120) { Hook.log("Settings: the panel's highest rate is " + top + " Hz, nothing to add"); return; }
-        try { autoSummary(frag, ctx, top); } catch (Throwable t) { Hook.log("Settings: Auto summary: " + t); }
-        if (top <= 144) { Hook.log("Settings: the panel's highest rate is " + top + " Hz, no extra choice needed"); return; }
-        Object cat = XposedHelpers.getObjectField(frag, "mPreferenceCategory");
-        if (cat == null) return;
-        String key = "rate_" + top;
-        if (XposedHelpers.callMethod(cat, "findPreference", key) != null) { Hook.log("Settings: " + top + " Hz is already listed by the firmware"); return; }
-        Class<?> radio = XposedHelpers.findClass("com.android.settings.widget.RadioButtonPreference", frag.getClass().getClassLoader());
-        Object pref = XposedHelpers.newInstance(radio, ctx);
-        // title and summary in the style of the 144 Hz choice ("144Hz" -> "165Hz"), plain "165 Hz" otherwise
-        CharSequence title = top + " Hz", summary = null;
-        try {
-            Object p144 = XposedHelpers.getObjectField(frag, "mRate144Preference");
-            if (p144 != null) {
-                Object t = XposedHelpers.callMethod(p144, "getTitle");
-                if (t != null && t.toString().contains("144")) title = t.toString().replace("144", String.valueOf(top));
-                Object s = XposedHelpers.callMethod(p144, "getSummary");
-                if (s instanceof CharSequence) summary = (CharSequence) s;
-            }
-        } catch (Throwable ignored) { }
-        XposedHelpers.callMethod(pref, "setTitle", title);
-        if (summary != null) XposedHelpers.callMethod(pref, "setSummary", summary);
-        XposedHelpers.callMethod(pref, "setKey", key);
-        XposedHelpers.callMethod(pref, "setOrder", MODE_TOP);
-        XposedHelpers.callMethod(pref, "setChecked", false);
-        XposedHelpers.callMethod(pref, "setOnClickListener", frag);
-        XposedHelpers.callMethod(cat, "addPreference", pref);
-        try { @SuppressWarnings("unchecked") Set<Integer> rates = (Set<Integer>) XposedHelpers.getObjectField(frag, "rateSet"); rates.add(MODE_TOP); } catch (Throwable ignored) { }
-        added.put(frag, pref);
-        Hook.log("Settings: added a " + top + " Hz choice (refresh_rate_mode " + MODE_TOP + ")");
     }
 
     private static int hookAll(Class<?> c, String name, XC_MethodHook cb) {

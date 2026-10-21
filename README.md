@@ -1,6 +1,11 @@
 # AutoHz Max — RedMagic Auto refresh rate up to 144 / 165 Hz
 
-Tiny LSPosed module for **RedMagic (ZTE/nubia) phones on RedMagic OS 10 / 11 (Android 15 / 16)**.
+Tiny LSPosed module for **RedMagic (ZTE/nubia) phones on RedMagic OS 11 (Android 16)**.
+
+> ⚠️ **Android 15 (RedMagic OS 10) is not supported since version 1.3.** Running 165 Hz through the module on Android 15
+> global firmware caused screen flicker and reboots. On Android 15, version 1.3 hooks nothing, and if you had picked the
+> 165 Hz choice that 1.2 added to Settings, it sets the refresh rate back to 144 Hz after the next reboot. On Android 15,
+> update to 1.3 once (so that reset runs), then switch the module off or uninstall it.
 
 RedMagic's **Auto** refresh-rate mode only ever switches between **60 Hz and 120 Hz**, even though the panel does 144 Hz
 (and 165 Hz with a 165 Hz DTBO mod). Picking the fixed 144 / 165 mode works, but then most apps are still sent to 120 Hz
@@ -24,10 +29,8 @@ reported, for example `working: Auto now goes 120 -> 165 Hz`. The same lines are
 **Modules** (lines starting with `AutoHzMax:`) and in `adb logcat -s AutoHzMax`. A refresh-rate overlay (Developer
 options → Show refresh rate) should read 165/144 while scrolling and 60 when idle.
 
-**Fixed 165 Hz on Android 15.** RedMagic OS 10's refresh-rate page only knows 60 / 90 / 120 / 144 Hz, so a 165 Hz panel
-gets no 165 Hz choice. With Settings in the scope the module adds the panel's top rate there (it writes the same mode
-RedMagic OS 11 uses for 165 Hz, and the framework part runs that mode at 165). On Android 16 the firmware already lists it
-and nothing is added. The log says `Settings: added a 165 Hz choice` when it works.
+**Settings** in the scope only updates the Auto choice's description so it names the panel's top rate (for example
+165 Hz instead of 120 Hz). RedMagic OS 11 lists the fixed 165 Hz choice by itself.
 
 If the app says the system framework part is "not loaded" after a reboot, the module is not active for System
 Framework: re-check the scope in LSPosed / Vector and reboot again.
@@ -37,6 +40,12 @@ Framework: re-check the scope in LSPosed / Vector and reboot again.
 The module hooks it (and `getSettingFps`) and replaces the result with `ScreenRefreshRateController.sHighestFps`, which the
 firmware fills from the panel's real display modes at boot. Nothing is hard-coded to 165: with a stock DTBO you get 144.
 Skipped when the developer "Lock refresh rate" switch is on or when a fixed mode is selected.
+
+## Versions
+- **1.3**: Android 16 only. Nothing is hooked on Android 15, and a leftover 165 Hz choice from 1.2 is set back to 144 Hz there.
+  The 165 Hz choice that 1.2 added to Settings on Android 15 is removed.
+- **1.2**: added a 165 Hz choice to Settings on Android 15 (withdrawn in 1.3: flicker and reboots on Android 15 global firmware).
+- **1.1**: status page in the app, log lines in logcat.
 
 ## Notes
 - Needs root + LSPosed/Vector like any Xposed module. No settings are written, nothing persists — uninstall or disable to revert.
