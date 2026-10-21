@@ -14,8 +14,8 @@ the LSPosed log tells you if it did not.
 
 ## Install
 1. Download **[release/AutoHzMax.apk](release/AutoHzMax.apk)** (built by GitHub Actions from this repo) and install it.
-2. LSPosed (or Vector) → Modules → **AutoHz Max** → switch it on and tick **System Framework** (`android`) and
-   **AutoHz Max** in its scope.
+2. LSPosed (or Vector) → Modules → **AutoHz Max** → switch it on and tick **System Framework** (`android`),
+   **Settings** (`com.android.settings`) and **AutoHz Max** in its scope.
 3. **Reboot** (framework modules only load at boot).
 4. Settings → Display → Refresh rate → **Auto**. If Auto was already selected, pick another rate and then Auto again once.
 
@@ -23,6 +23,11 @@ Check: open the AutoHz Max app. It shows whether LSPosed loaded the module and w
 reported, for example `working: Auto now goes 120 -> 165 Hz`. The same lines are in LSPosed / Vector → Logs →
 **Modules** (lines starting with `AutoHzMax:`) and in `adb logcat -s AutoHzMax`. A refresh-rate overlay (Developer
 options → Show refresh rate) should read 165/144 while scrolling and 60 when idle.
+
+**Fixed 165 Hz on Android 15.** RedMagic OS 10's refresh-rate page only knows 60 / 90 / 120 / 144 Hz, so a 165 Hz panel
+gets no 165 Hz choice. With Settings in the scope the module adds the panel's top rate there (it writes the same mode
+RedMagic OS 11 uses for 165 Hz, and the framework part runs that mode at 165). On Android 16 the firmware already lists it
+and nothing is added. The log says `Settings: added a 165 Hz choice` when it works.
 
 If the app says the system framework part is "not loaded" after a reboot, the module is not active for System
 Framework: re-check the scope in LSPosed / Vector and reboot again.

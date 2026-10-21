@@ -24,6 +24,9 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
  * stock RedMagic 10/11 Pro, 165 with a 165 Hz DTBO). Nothing else changes: idle still drops to 60, game / per-app
  * policies still apply, the Settings page keeps working, the developer "Lock refresh rate" switch is respected.
  *
+ * Settings: on RedMagic OS 10 (Android 15) the refresh-rate page has no choice above 144 Hz; SettingsRates adds the
+ * panel's top rate there (refresh_rate_mode 5, as RedMagic OS 11 does), and the hook here runs mode 5 at that rate.
+ *
  * Verified on NX789J firmware 11.0.11 (Android 16). Class / field names are looked up defensively so other RedMagic
  * OS 11 firmware (NX809J …) should work as long as ZTE kept the same controller; misses are logged to the LSPosed log.
  */
@@ -82,6 +85,10 @@ public class Hook implements IXposedHookLoadPackage, IXposedHookZygoteInit {
             try { XposedHelpers.findAndHookMethod("com.hammad.autohzmax.MainActivity", lp.classLoader, "isActive", de.robv.android.xposed.XC_MethodReplacement.returnConstant(true)); } catch (Throwable ignored) { }
             return;
         }
+        if ("com.android.settings".equals(lp.packageName)) {
+            try { SettingsRates.install(lp.classLoader); } catch (Throwable t) { log("Settings: install failed: " + t); }
+            return;
+        }
         if (!"android".equals(lp.packageName)) return;
         log("system_server: installing");
         try {
@@ -116,6 +123,17 @@ public class Hook implements IXposedHookLoadPackage, IXposedHookZygoteInit {
                 try {
                     int m = (p.args.length > 0 && p.args[0] instanceof Integer) ? (Integer) p.args[0]
                             : (mode != null ? mode.getInt(null) : 0);
+                    if (m == SettingsRates.MODE_TOP) {
+                        // the top-rate choice (165 Hz): firmware without that mode (RedMagic OS 10) gets the panel's highest rate
+                        int hi = highest.getInt(null);
+                        if (hi > 144 && settingFps.getInt(null) != hi) {
+                            settingFps.setInt(null, hi);
+                            if (p.getResult() instanceof Integer) p.setResult(hi);
+                            log("fixed mode " + m + " -> " + hi + " Hz");
+                            setStatus("working: fixed " + hi + " Hz (the top-rate choice in Settings)");
+                        }
+                        return;
+                    }
                     if (m != 0) return;                                        // only the Auto mode
                     if (lock != null && lock.getInt(null) == 1) return;        // developer "Lock refresh rate" wins
                     int hi = highest.getInt(null);

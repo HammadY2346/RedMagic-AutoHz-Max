@@ -42,11 +42,13 @@ public class MainActivity extends Activity {
         String fw = null;
         try { fw = Settings.Global.getString(getContentResolver(), Hook.STATUS_KEY); } catch (Throwable ignored) { }
         boolean active = isActive();
-        return "Module in LSPosed: " + (active ? "enabled" : "NOT ENABLED. Open LSPosed / Vector \u203A Modules \u203A AutoHz Max, switch it on, tick System Framework (and AutoHz Max) in its scope, then reboot.")
+        return "Module in LSPosed: " + (active ? "enabled" : "NOT ENABLED. Open LSPosed / Vector \u203A Modules \u203A AutoHz Max, switch it on, tick System Framework, Settings and AutoHz Max in its scope, then reboot.")
                 + "\n\nSystem framework: " + (fw != null ? fw : active ? "no report yet. Reboot once after enabling the module (framework modules load at boot)." : "not loaded")
                 + "\n\nHow to use: Settings \u203A Display \u203A Refresh rate \u203A Auto. The phone then switches between 60 Hz and the highest rate the panel offers "
                 + "(144 Hz stock, 165 Hz with a 165 Hz DTBO) instead of stopping at 120 Hz. Idle still drops to 60; games keep their own Game Space setting. "
                 + "If Auto was already selected, pick another rate and Auto again once."
+                + "\n\nFixed 165 Hz: on Android 15 (RedMagic OS 10) the refresh-rate page stops at 144 Hz. With Settings ticked in the module's "
+                + "scope it also lists the panel's top rate (165 Hz with the DTBO). Force-stop Settings after enabling it."
                 + "\n\nLogs: LSPosed / Vector \u203A Logs \u203A Modules, lines starting with \"AutoHzMax:\" (or adb logcat -s AutoHzMax).";
     }
 }
