@@ -80,11 +80,34 @@ final class SettingsRates {
         } catch (Throwable t) { return 0; }
     }
 
+    /**
+     * The Auto choice's summary names the old ceiling ("switches between 60 and 120 Hz"); with the framework part working
+     * Auto goes up to the panel's top rate, so the summary says that instead.
+     */
+    private static void autoSummary(Object frag, Context ctx, int top) {
+        String status = null;
+        try { status = Settings.Global.getString(ctx.getContentResolver(), Hook.STATUS_KEY); } catch (Throwable ignored) { }
+        if (status == null || !(status.contains("working") || status.contains("installed"))) return;   // the framework part is not running
+        Object auto = XposedHelpers.getObjectField(frag, "mRateAutoPreference");
+        if (auto == null) return;
+        Object s = XposedHelpers.callMethod(auto, "getSummary");
+        if (!(s instanceof CharSequence)) return;
+        String text = s.toString();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d{2,3}").matcher(text);
+        int max = 0;
+        while (m.find()) { int v = Integer.parseInt(m.group()); if (v >= 90 && v <= 144) max = Math.max(max, v); }
+        if (max == 0 || max >= top) return;
+        XposedHelpers.callMethod(auto, "setSummary", text.replace(String.valueOf(max), String.valueOf(top)));
+        Hook.log("Settings: Auto summary now names " + top + " Hz (was " + max + ")");
+    }
+
     private static void addTop(Object frag) {
         Context ctx = (Context) XposedHelpers.callMethod(frag, "getContext");
         if (ctx == null) return;
         int top = topRate(ctx);
-        if (top <= 144) { Hook.log("Settings: the panel's highest rate is " + top + " Hz, nothing to add"); return; }
+        if (top <= 120) { Hook.log("Settings: the panel's highest rate is " + top + " Hz, nothing to add"); return; }
+        try { autoSummary(frag, ctx, top); } catch (Throwable t) { Hook.log("Settings: Auto summary: " + t); }
+        if (top <= 144) { Hook.log("Settings: the panel's highest rate is " + top + " Hz, no extra choice needed"); return; }
         Object cat = XposedHelpers.getObjectField(frag, "mPreferenceCategory");
         if (cat == null) return;
         String key = "rate_" + top;
