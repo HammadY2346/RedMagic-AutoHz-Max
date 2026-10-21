@@ -4,5 +4,6 @@
     <string name="xposed_description">RedMagic: Auto refresh-rate mode ramps up to the panel\'s highest rate (144 / 165 Hz) instead of stopping at 120 Hz.</string>
     <string-array name="xposed_scope">
         <item>android</item>
+        <item>com.hammad.autohzmax</item>
     </string-array>
 </resources>

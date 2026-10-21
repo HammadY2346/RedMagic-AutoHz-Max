@@ -2,10 +2,14 @@ package com.hammad.autohzmax;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-/** Status page: nothing to configure — enable the module in LSPosed with scope "System Framework" and reboot. */
+/**
+ * Status page: whether LSPosed loaded the module into this app, what the hook in system_server reported (it writes its
+ * state to Settings.Global, so no log reading is needed), and how to use it. Nothing to configure.
+ */
 public class MainActivity extends Activity {
     /** Replaced by the hook when the module is active (the module hooks its own isActive()). */
     static boolean isActive() { return false; }
@@ -16,12 +20,33 @@ public class MainActivity extends Activity {
         int p = (int) (20 * getResources().getDisplayMetrics().density);
         t.setPadding(p, p, p, p);
         t.setTextSize(15);
-        t.setText("AutoHz Max\n\n"
-                + "Module status: " + (isActive() ? "ACTIVE" : "NOT ACTIVE — enable it in LSPosed, tick \"System Framework\" (android) in its scope, then reboot.") + "\n\n"
-                + "What it does: in Settings > Display > Refresh rate choose Auto. The phone then switches between 60 Hz and the highest rate the panel offers (144 Hz stock, 165 Hz with a 165 Hz DTBO) instead of stopping at 120 Hz. Idle still drops to 60; games keep their own Game Space setting.\n\n"
-                + "Nothing to configure. Check LSPosed > Logs for lines starting with \"AutoHzMax:\".");
+        t.setTextIsSelectable(true);
         ScrollView sv = new ScrollView(this);
+        sv.setFitsSystemWindows(true);
         sv.addView(t);
         setContentView(sv);
+        t.setText(text());
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        refresh();
+    }
+
+    private void refresh() {
+        ScrollView sv = (ScrollView) ((android.view.ViewGroup) findViewById(android.R.id.content)).getChildAt(0);
+        if (sv != null && sv.getChildCount() > 0) ((TextView) sv.getChildAt(0)).setText(text());
+    }
+
+    private String text() {
+        String fw = null;
+        try { fw = Settings.Global.getString(getContentResolver(), Hook.STATUS_KEY); } catch (Throwable ignored) { }
+        boolean active = isActive();
+        return "Module in LSPosed: " + (active ? "enabled" : "NOT ENABLED. Open LSPosed / Vector \u203A Modules \u203A AutoHz Max, switch it on, tick System Framework (and AutoHz Max) in its scope, then reboot.")
+                + "\n\nSystem framework: " + (fw != null ? fw : active ? "no report yet. Reboot once after enabling the module (framework modules load at boot)." : "not loaded")
+                + "\n\nHow to use: Settings \u203A Display \u203A Refresh rate \u203A Auto. The phone then switches between 60 Hz and the highest rate the panel offers "
+                + "(144 Hz stock, 165 Hz with a 165 Hz DTBO) instead of stopping at 120 Hz. Idle still drops to 60; games keep their own Game Space setting. "
+                + "If Auto was already selected, pick another rate and Auto again once."
+                + "\n\nLogs: LSPosed / Vector \u203A Logs \u203A Modules, lines starting with \"AutoHzMax:\" (or adb logcat -s AutoHzMax).";
     }
 }

@@ -13,13 +13,19 @@ is the same engine on the RedMagic 11 Pro (NX809J) and other RedMagic OS 11 phon
 the LSPosed log tells you if it did not.
 
 ## Install
-1. Download **[release/AutoHzMax.apk](release/AutoHzMax.apk)** (built by GitHub Actions from this repo; also under *Actions → latest run → AutoHzMax-apk*) and install it.
-2. LSPosed (or Vector) → Modules → **AutoHz Max** → enable, scope **System Framework** (`android`) — it is the only recommended scope.
-3. **Reboot.**
-4. Settings → Display → Refresh rate → **Auto**. Done. The app's page only shows the module status; there is nothing to configure.
+1. Download **[release/AutoHzMax.apk](release/AutoHzMax.apk)** (built by GitHub Actions from this repo) and install it.
+2. LSPosed (or Vector) → Modules → **AutoHz Max** → switch it on and tick **System Framework** (`android`) and
+   **AutoHz Max** in its scope.
+3. **Reboot** (framework modules only load at boot).
+4. Settings → Display → Refresh rate → **Auto**. If Auto was already selected, pick another rate and then Auto again once.
 
-Verify: LSPosed → Logs → look for `AutoHzMax: installed (2 hooks)` and later `AutoHzMax: Auto high step 120 -> 165 Hz`
-(or `-> 144`). A refresh-rate overlay (Developer options → Show refresh rate) should now read 165/144 while scrolling and 60 when idle.
+Check: open the AutoHz Max app. It shows whether LSPosed loaded the module and what the hook in the system framework
+reported, for example `working: Auto now goes 120 -> 165 Hz`. The same lines are in LSPosed / Vector → Logs →
+**Modules** (lines starting with `AutoHzMax:`) and in `adb logcat -s AutoHzMax`. A refresh-rate overlay (Developer
+options → Show refresh rate) should read 165/144 while scrolling and 60 when idle.
+
+If the app says the system framework part is "not loaded" after a reboot, the module is not active for System
+Framework: re-check the scope in LSPosed / Vector and reboot again.
 
 ## How it works
 `com.android.server.am.GlobalSettingFpsController.convertModeToValue(0)` picks the Auto high step (120 on a 120+ Hz panel).
